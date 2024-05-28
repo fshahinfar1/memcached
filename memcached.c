@@ -5372,6 +5372,8 @@ int main (int argc, char **argv) {
                     hash_type = MURMUR3_HASH;
                 } else if (strcmp(subopts_value, "xxh3") == 0) {
                     hash_type = XXH3_HASH;
+                } else if (strcmp(subopts_value, "dummy") == 0) {
+                    hash_type = DUMMY_HASH;
                 } else {
                     fprintf(stderr, "Unknown hash_algorithm option (jenkins, murmur3, xxh3)\n");
                     return 1;
