@@ -13,6 +13,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "timing.h"
+
 /** binprot handlers **/
 static void process_bin_flush(conn *c, char *extbuf);
 static void process_bin_append_prepend(conn *c);
@@ -119,6 +121,9 @@ int try_read_command_binary(conn *c) {
         c->rbytes -= sizeof(c->binary_header) + extlen + keylen;
         c->rcurr += sizeof(c->binary_header) + extlen + keylen;
 
+#ifdef MEASURE_REQ_PROCESSING_TIME
+        c->ts.ts_parse_cmd = get_ns();
+#endif
         dispatch_bin_command(c, extbuf);
     }
 
@@ -482,7 +487,13 @@ static void process_bin_get_or_touch(conn *c, char *extbuf) {
 
         it = item_touch(key, nkey, realtime(exptime), c->thread);
     } else {
+#ifdef MEASURE_REQ_PROCESSING_TIME
+        c->ts.ts_lookup_begin = get_ns();
+#endif
         it = item_get(key, nkey, c->thread, DO_UPDATE);
+#ifdef MEASURE_REQ_PROCESSING_TIME
+        c->ts.ts_lookup_end = get_ns();
+#endif
     }
 
     if (it) {

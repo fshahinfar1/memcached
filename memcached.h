@@ -52,6 +52,8 @@
 #include "queue.h"
 #include "util.h"
 
+#include "timing.h"
+
 #ifdef EXTSTORE
 #include "crc32c.h"
 #endif
@@ -908,6 +910,10 @@ struct conn {
     ssize_t (*read)(conn  *c, void *buf, size_t count);
     ssize_t (*sendmsg)(conn *c, struct msghdr *msg, int flags);
     ssize_t (*write)(conn *c, void *buf, size_t count);
+
+#ifdef MEASURE_REQ_PROCESSING_TIME
+    struct op_timestamp ts;
+#endif
 };
 
 /* array of conn structures, indexed by file descriptor */

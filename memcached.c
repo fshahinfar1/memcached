@@ -194,6 +194,61 @@ rel_time_t realtime(const time_t exptime) {
     }
 }
 
+
+/* ------------------------------------------------------------------------ */
+#include "timing.h"
+#ifdef MEASURE_REQ_PROCESSING_TIME
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+/* struct op_timestamp *_samples = NULL; */
+/* size_t sample_index = 0; */
+
+#define MEASUREMENT_SAMPLE_SIZE 10000000
+#define REPORT_ADDRESS "/tmp/memcd_samples.txt"
+static struct op_timestamp *_samples;
+static size_t sample_index;
+
+static void init_sample_memory(void) {
+    _samples = calloc(MEASUREMENT_SAMPLE_SIZE, sizeof(struct op_timestamp));
+    if (_samples == NULL) {
+        fprintf(stderr, "Failed to allocate memory to store samples\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+static void record_sample(const struct op_timestamp *ts) {
+    if (sample_index >= MEASUREMENT_SAMPLE_SIZE) {
+        /* Terminate the server */
+        stop_main_loop = EXIT_NORMALLY;
+    }
+    _samples[sample_index++] = *ts;
+}
+
+static void report_sample_memory(void) {
+    FILE *outfd = fopen(REPORT_ADDRESS, "w");
+    if (outfd == NULL) {
+        fprintf(stderr, "Failed to open the sample output file\n");
+        return;
+    }
+    fprintf(outfd, "number of samples: %ld\n", sample_index);
+    for (size_t i = 0; i < sample_index; i++) {
+        struct op_timestamp *ts = &_samples[i];
+        uint64_t total_proc_time = ts->ts_send - ts->ts_recv_req;
+        uint64_t parse_time = ts->ts_parse_cmd - ts->ts_recv_req;
+        uint64_t lookup_time = ts->ts_lookup_end - ts->ts_lookup_begin;
+
+        fprintf(outfd, "total-proc-time: %ld    parsing: %ld    lookup: %ld\n",
+                total_proc_time,
+                parse_time,
+                lookup_time
+               );
+    }
+}
+
+#endif
+/* ------------------------------------------------------------------------ */
+
 static void stats_init(void) {
     memset(&stats, 0, sizeof(struct stats));
     memset(&stats_state, 0, sizeof(struct stats_state));
@@ -2473,6 +2528,9 @@ static enum try_read_result try_read_udp(conn *c) {
 
         c->rbytes = res;
         c->rcurr = c->rbuf;
+#ifdef MEASURE_REQ_PROCESSING_TIME
+        c->ts.ts_recv_req = get_ns();
+#endif
         return READ_DATA_RECEIVED;
     }
     return READ_NO_DATA_RECEIVED;
@@ -3026,6 +3084,12 @@ static void drive_machine(conn *c) {
     socklen_t addrlen;
     struct sockaddr_storage addr;
     int nreqs = settings.reqs_per_event;
+#ifdef MEASURE_REQ_PROCESSING_TIME
+    /* Force processing only one command per connection when trying to measure
+     * timing
+     * */
+    nreqs = 1;
+#endif
     int res;
     const char *str;
 #ifdef HAVE_ACCEPT4
@@ -3405,6 +3469,10 @@ static void drive_machine(conn *c) {
                         fprintf(stderr, "Unexpected state %d\n", c->state);
                     conn_set_state(c, conn_closing);
                 }
+#ifdef MEASURE_REQ_PROCESSING_TIME
+                c->ts.ts_send = get_ns();
+                record_sample(&c->ts);
+#endif
                 break;
 
             case TRANSMIT_INCOMPLETE:
@@ -6302,6 +6370,10 @@ int main (int argc, char **argv) {
     /* Initialize the uriencode lookup table. */
     uriencode_init();
 
+#ifdef MEASURE_REQ_PROCESSING_TIME
+    init_sample_memory();
+#endif
+
     /* enter the event loop */
     while (!stop_main_loop) {
         if (event_base_loop(main_base, EVLOOP_ONCE) != 0) {
@@ -6309,6 +6381,10 @@ int main (int argc, char **argv) {
             break;
         }
     }
+
+#ifdef MEASURE_REQ_PROCESSING_TIME
+    report_sample_memory();
+#endif
 
     switch (stop_main_loop) {
         case GRACE_STOP:
