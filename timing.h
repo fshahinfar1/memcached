@@ -11,16 +11,16 @@
 /* NOTE: Turn on to record the time spent in each step of processing the
  * request
  * */
-#ifndef MEASURE_REQ_PROCESSING_TIME
-#define MEASURE_REQ_PROCESSING_TIME 1
-struct op_timestamp {
-	uint64_t ts_recv_req;
-	uint64_t ts_parse_cmd;
-	uint64_t ts_lookup_begin;
-	uint64_t ts_lookup_end;
-	uint64_t ts_send;
-};
-#endif
+/* #ifndef MEASURE_REQ_PROCESSING_TIME */
+/* #define MEASURE_REQ_PROCESSING_TIME 1 */
+/* struct op_timestamp { */
+/* 	uint64_t ts_recv_req; */
+/* 	uint64_t ts_parse_cmd; */
+/* 	uint64_t ts_lookup_begin; */
+/* 	uint64_t ts_lookup_end; */
+/* 	uint64_t ts_send; */
+/* }; */
+/* #endif */
 
 static inline unsigned long int get_ns(void) {
 	MEMBARRIER();
